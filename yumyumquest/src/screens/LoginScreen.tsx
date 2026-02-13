@@ -1,8 +1,10 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Link, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
-import { Dimensions, Image, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Alert, Dimensions, Image, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { getUserFlowStatus, signIn } from '../services/auth';
+import { getAutoLoginEnabled, setAutoLoginEnabled } from '../services/sessionPreference';
 
 const { width } = Dimensions.get('window');
 
@@ -10,11 +12,56 @@ export default function LoginScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [autoLoginEnabled, setAutoLoginChecked] = useState(true);
 
-    const handleLogin = () => {
-        // In a real app, validate credentials here.
-        // For now, just navigate to the parent dashboard.
-        router.replace('/(parent)');
+    useEffect(() => {
+        const loadPreference = async () => {
+            const enabled = await getAutoLoginEnabled();
+            setAutoLoginChecked(enabled);
+        };
+        loadPreference();
+    }, []);
+
+    const handleToggleAutoLogin = async () => {
+        const next = !autoLoginEnabled;
+        setAutoLoginChecked(next);
+        await setAutoLoginEnabled(next);
+    };
+
+    const handleLogin = async () => {
+        if (!email || !password) {
+            Alert.alert("알림", "이메일과 비밀번호를 입력해주세요.");
+            return;
+        }
+
+        try {
+            await setAutoLoginEnabled(autoLoginEnabled);
+            const user = await signIn(email, password);
+            const flow = await getUserFlowStatus(user.uid);
+
+            if (!flow.phoneVerified) {
+                router.replace('/phone-auth');
+                return;
+            }
+
+            if (!flow.onboardingCompleted) {
+                router.replace('/onboarding');
+                return;
+            }
+
+            router.replace('/(parent)');
+        } catch (error: any) {
+            console.error(error.code);
+            let errorMessage = "로그인 중 오류가 발생했습니다.";
+            if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-email') {
+                errorMessage = "존재하지 않는 계정입니다.";
+            } else if (error.code === 'auth/wrong-password') {
+                errorMessage = "비밀번호가 틀렸습니다.";
+            } else if (error.code === 'auth/invalid-credential') {
+                errorMessage = "이메일 또는 비밀번호가 올바르지 않습니다.";
+            }
+            Alert.alert("로그인 실패", errorMessage);
+        }
     };
 
     return (
@@ -81,6 +128,15 @@ export default function LoginScreen() {
                         </TouchableOpacity>
                     </View>
 
+                    <TouchableOpacity style={styles.autoLoginRow} onPress={handleToggleAutoLogin}>
+                        <Ionicons
+                            name={autoLoginEnabled ? "checkbox-outline" : "square-outline"}
+                            size={20}
+                            color={autoLoginEnabled ? "#FFA000" : "#9E9E9E"}
+                        />
+                        <Text style={styles.autoLoginText}>자동 로그인</Text>
+                    </TouchableOpacity>
+
                     {/* Login Button */}
                     <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
                         <Text style={styles.loginButtonText}>로그인</Text>
@@ -112,7 +168,7 @@ export default function LoginScreen() {
                     {/* Footer Links */}
                     <Text style={styles.footerText}>계정이 없으신가요? <Link href="/signup" asChild><Text style={styles.linkText}>회원가입</Text></Link></Text>
 
-                    <TouchableOpacity style={styles.childLoginLink}>
+                    <TouchableOpacity style={styles.childLoginLink} onPress={() => router.push('/child-login')}>
                         <MaterialCommunityIcons name="face-man-profile" size={20} color="#FFD700" />
                         <Text style={styles.childLoginText}> 아이라면 코드로 입장하기</Text>
                     </TouchableOpacity>
@@ -122,6 +178,9 @@ export default function LoginScreen() {
                 <View style={styles.demoNoteContainer}>
                     <Text style={styles.demoNoteTitle}>💡 데모 버전: <Text style={styles.demoNoteText}>아무 이메일/비밀번호로 로그인 가능합니다</Text></Text>
                     <Text style={styles.demoNoteSubText}>실제 서비스에서는 안전한 인증 시스템이 적용됩니다</Text>
+                    <TouchableOpacity onPress={() => router.push('/onboarding')} style={{ marginTop: 10 }}>
+                        <Text style={{ color: '#2979FF', fontSize: 12, textDecorationLine: 'underline' }}>[개발용] 온보딩 화면 미리보기</Text>
+                    </TouchableOpacity>
                 </View>
 
             </ScrollView>
@@ -222,6 +281,18 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#333',
         height: '100%',
+    },
+    autoLoginRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 12,
+        marginLeft: 2,
+        gap: 8,
+    },
+    autoLoginText: {
+        fontSize: 14,
+        color: '#555',
+        fontWeight: '600',
     },
     loginButton: {
         backgroundColor: '#FFA000', // Orange
