@@ -27,5 +27,13 @@ export default function RootLayout() {
     return null;
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
+      <Stack.Screen name="(parent)" options={{ gestureEnabled: false }} />
+      <Stack.Screen name="(child)" options={{ gestureEnabled: false }} />
+      <Stack.Screen name="login" options={{ gestureEnabled: false }} />
+      <Stack.Screen name="signup" options={{ presentation: 'modal' }} />
+    </Stack>
+  );
 }

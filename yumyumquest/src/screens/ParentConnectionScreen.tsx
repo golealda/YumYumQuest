@@ -1,6 +1,5 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -41,10 +40,7 @@ export default function ParentConnectionScreen() {
             >
                 <SafeAreaView edges={['top']} style={styles.safeAreaHeader}>
                     {/* Back Button (Visual only since this is main tab) */}
-                    <TouchableOpacity onPress={() => router.back()} style={styles.navBack}>
-                        <Ionicons name="arrow-back" size={24} color="#FFF" />
-                        <Text style={styles.navBackText}>뒤로가기</Text>
-                    </TouchableOpacity>
+
 
                     <View style={styles.headerContent}>
                         <View>

@@ -2,7 +2,8 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
-import { Image, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { signUp } from '../services/auth';
 
 export default function SignupScreen() {
     const [name, setName] = useState('');
@@ -11,6 +12,43 @@ export default function SignupScreen() {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+    const handleSignup = async () => {
+        if (!email || !password || !confirmPassword || !name) {
+            Alert.alert("알림", "모든 항목을 입력해주세요.");
+            return;
+        }
+
+        if (password !== confirmPassword) {
+            Alert.alert("오류", "비밀번호가 서로 다릅니다. 다시 확인해주세요.");
+            return;
+        }
+
+        if (password.length < 6) {
+            Alert.alert("오류", "비밀번호는 최소 6자 이상이어야 합니다.");
+            return;
+        }
+
+        try {
+            await signUp(email, password, name);
+            Alert.alert(
+                "성공",
+                "회원가입이 완료되었습니다! 로그인 해주세요.",
+                [{ text: "확인", onPress: () => router.replace('/') }]
+            );
+        } catch (error: any) {
+            console.error(error);
+            let errorMessage = "회원가입 중 오류가 발생했습니다.";
+            if (error.code === 'auth/email-already-in-use') {
+                errorMessage = "이미 사용 중인 이메일입니다.";
+            } else if (error.code === 'auth/invalid-email') {
+                errorMessage = "유효하지 않은 이메일 형식입니다.";
+            } else if (error.code === 'auth/weak-password') {
+                errorMessage = "비밀번호가 너무 약합니다.";
+            }
+            Alert.alert("회원가입 실패", errorMessage);
+        }
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -93,6 +131,9 @@ export default function SignupScreen() {
                             value={password}
                             onChangeText={setPassword}
                             secureTextEntry={!showPassword}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            textContentType="none"
                         />
                         <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                             <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#999" />
@@ -112,6 +153,9 @@ export default function SignupScreen() {
                             value={confirmPassword}
                             onChangeText={setConfirmPassword}
                             secureTextEntry={!showConfirmPassword}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            textContentType="none" // 'newPassword' sometimes triggers strong password suggestions masking input too aggressively
                         />
                         <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
                             <Ionicons name={showConfirmPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#999" />
@@ -119,7 +163,7 @@ export default function SignupScreen() {
                     </View>
 
                     {/* Signup Button */}
-                    <TouchableOpacity style={styles.signupButton}>
+                    <TouchableOpacity style={styles.signupButton} onPress={handleSignup}>
                         <Text style={styles.signupButtonText}>가입하기</Text>
                     </TouchableOpacity>
 
@@ -268,6 +312,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#333',
         height: '100%',
+        paddingVertical: 0, // Fix for Android text vertical alignment
     },
     signupButton: {
         backgroundColor: '#FFA000', // Orange
