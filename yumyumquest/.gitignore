@@ -39,3 +39,18 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Firebase
+.firebase/
+
+# Environment variables
+.env
+
+# Testing
+coverage/
+
+# Logs
+*.log
+
+# JetBrains IDE
+.idea/
