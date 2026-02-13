@@ -1,5 +1,5 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
 import { Dimensions, Image, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -10,6 +10,12 @@ export default function LoginScreen() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+
+    const handleLogin = () => {
+        // In a real app, validate credentials here.
+        // For now, just navigate to the parent dashboard.
+        router.replace('/(parent)');
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -76,7 +82,7 @@ export default function LoginScreen() {
                     </View>
 
                     {/* Login Button */}
-                    <TouchableOpacity style={styles.loginButton}>
+                    <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
                         <Text style={styles.loginButtonText}>로그인</Text>
                     </TouchableOpacity>
 
