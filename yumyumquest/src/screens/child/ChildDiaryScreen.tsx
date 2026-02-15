@@ -1,15 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import React, { useCallback, useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { getCurrentChildProfile } from '../services/childSessionService';
-
-// Use the existing mascot image (assumed path based on previous context)
-// If imports fail, I will fallback to emoji, but user said they added ant_mascot.png
-const ANT_MASCOT = require('../../assets/ant_mascot.png');
+import React, { useEffect, useState } from 'react';
+import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import ChildHeader, { ANT_MASCOT } from '../../components/child/ChildHeader';
+import ChildTaskItem from '../../components/child/ChildTaskItem';
+import { ChildProfileSyncStatus, subscribeCurrentChildProfile } from '../../services/childSessionService';
 
 interface Task {
     id: string;
@@ -29,24 +24,37 @@ export default function ChildDiaryScreen() {
     ]);
     const [childName, setChildName] = useState('우리 개미');
     const [childAvatar, setChildAvatar] = useState('🐼');
+    const [syncStatus, setSyncStatus] = useState<ChildProfileSyncStatus>('synced');
 
-    useFocusEffect(
-        useCallback(() => {
-            let mounted = true;
-            const loadChildProfile = async () => {
-                const profile = await getCurrentChildProfile();
-                if (!mounted) return;
-                if (profile) {
+    useEffect(() => {
+        let mounted = true;
+        let unsubscribe: (() => void) | null = null;
+
+        const bindChildProfile = async () => {
+            unsubscribe = await subscribeCurrentChildProfile(
+                (profile) => {
+                    if (!mounted) return;
+                    if (!profile) {
+                        setChildName('우리 개미');
+                        setChildAvatar('🐼');
+                        return;
+                    }
                     setChildName(profile.nickname);
                     setChildAvatar(profile.avatar);
+                },
+                (status) => {
+                    if (!mounted) return;
+                    setSyncStatus(status);
                 }
-            };
-            loadChildProfile();
-            return () => {
-                mounted = false;
-            };
-        }, [])
-    );
+            );
+        };
+
+        bindChildProfile();
+        return () => {
+            mounted = false;
+            if (unsubscribe) unsubscribe();
+        };
+    }, []);
 
     const toggleTask = (id: string) => {
         setTasks(tasks.map(task =>
@@ -57,30 +65,7 @@ export default function ChildDiaryScreen() {
     return (
         <View style={styles.container}>
             <StatusBar style="light" />
-
-            {/* Header Gradient */}
-            <LinearGradient
-                colors={['#FF6F00', '#FFA000', '#FFCA28']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.headerGradient}
-            >
-                <SafeAreaView edges={['top']} style={styles.safeAreaHeader}>
-
-
-                    <View style={styles.headerContent}>
-                        <Image source={ANT_MASCOT} style={styles.headerMascot} resizeMode="contain" />
-                        <View style={styles.headerTextContainer}>
-                            <Text style={styles.greetingTitle}>안녕, {childName}!</Text>
-                            <Text style={styles.greetingSubtitle}>오늘도 열심히 일해볼까?</Text>
-                        </View>
-                        <View style={styles.grainBadge}>
-                            <Text style={styles.grainCount}>30</Text>
-                            <Text style={styles.grainLabel}>곡식</Text>
-                        </View>
-                    </View>
-                </SafeAreaView>
-            </LinearGradient>
+            <ChildHeader childName={childName} grainCount={30} syncStatus={syncStatus} />
 
             <ScrollView
                 style={styles.contentContainer}
@@ -104,25 +89,13 @@ export default function ChildDiaryScreen() {
 
                 <View style={styles.taskList}>
                     {tasks.map((task) => (
-                        <TouchableOpacity
+                        <ChildTaskItem
                             key={task.id}
-                            style={styles.taskCard}
+                            text={task.text}
+                            reward={task.reward}
+                            completed={task.completed}
                             onPress={() => toggleTask(task.id)}
-                            activeOpacity={0.8}
-                        >
-                            <View style={[styles.checkbox, task.completed && styles.checkedBox]}>
-                                {task.completed && <Ionicons name="checkmark" size={16} color="#FFF" />}
-                            </View>
-
-                            <Text style={[styles.taskText, task.completed && styles.completedTaskText]}>
-                                {task.text}
-                            </Text>
-
-                            <View style={styles.rewardBadge}>
-                                <Text style={styles.rewardIcon}>🌾</Text>
-                                <Text style={styles.rewardAmount}>{task.reward}</Text>
-                            </View>
-                        </TouchableOpacity>
+                        />
                     ))}
                 </View>
 
@@ -183,6 +156,29 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: 'rgba(255,255,255,0.9)',
     },
+    headerRight: {
+        alignItems: 'flex-end',
+    },
+    syncBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 7,
+        paddingVertical: 4,
+        borderRadius: 999,
+        marginBottom: 6,
+        gap: 4,
+    },
+    syncBadgeOffline: {
+        backgroundColor: 'rgba(71, 85, 105, 0.8)',
+    },
+    syncBadgeError: {
+        backgroundColor: 'rgba(220, 38, 38, 0.9)',
+    },
+    syncBadgeText: {
+        color: '#FFF',
+        fontSize: 10,
+        fontWeight: '700',
+    },
     grainBadge: {
         backgroundColor: 'rgba(255,255,255,0.3)',
         borderRadius: 15,
@@ -219,7 +215,7 @@ const styles = StyleSheet.create({
         shadowRadius: 5,
         elevation: 3,
         marginBottom: 25,
-        marginTop: -30, // Negative margin to overlap with header
+        marginTop: -10, // Slight overlap to keep a small gap under header
     },
     messageMascot: {
         width: 50,

@@ -1,11 +1,11 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { getSubscriptionActive } from '../services/subscriptionPreference';
+import ParentHeader from '../../components/parent/ParentHeader';
+import { ConnectedChildSummary, getConnectedChildrenForCurrentParent } from '../../services/childConnectionService';
+import { getSubscriptionActive } from '../../services/subscriptionPreference';
 
 /* 
  * UI Component for the Parent's "Connection" Screen 
@@ -13,8 +13,7 @@ import { getSubscriptionActive } from '../services/subscriptionPreference';
  */
 
 export default function ParentConnectionScreen() {
-    // Mock state for children, empty as per image
-    const connectedChildrenCount = 0;
+    const [connectedChildren, setConnectedChildren] = useState<ConnectedChildSummary[]>([]);
     const [isPremium, setIsPremium] = useState(false);
 
     // Mock handlers
@@ -29,12 +28,16 @@ export default function ParentConnectionScreen() {
     useFocusEffect(
         useCallback(() => {
             let mounted = true;
-            const loadSubscription = async () => {
-                const premium = await getSubscriptionActive();
+            const loadScreenData = async () => {
+                const [premium, children] = await Promise.all([
+                    getSubscriptionActive(),
+                    getConnectedChildrenForCurrentParent(),
+                ]);
                 if (!mounted) return;
                 setIsPremium(premium);
+                setConnectedChildren(children);
             };
-            loadSubscription();
+            loadScreenData();
             return () => {
                 mounted = false;
             };
@@ -44,32 +47,12 @@ export default function ParentConnectionScreen() {
     return (
         <View style={styles.container}>
             <StatusBar style="light" />
-
-            {/* Header Section with Blue Gradient */}
-            <LinearGradient
-                colors={['#448AFF', '#2962FF']} // Blue gradient
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.headerGradient}
-            >
-                <SafeAreaView edges={['top']} style={styles.safeAreaHeader}>
-                    {/* Back Button (Visual only since this is main tab) */}
-
-
-                    <View style={styles.headerContent}>
-                        <View>
-                            <Text style={styles.headerTitle}>부모님 관리 페이지</Text>
-                            <Text style={styles.headerSubtitle}>과제와 보상을 관리해주세요</Text>
-                        </View>
-                        {!isPremium && (
-                            <TouchableOpacity style={styles.upgradeButton} onPress={handleUpgrade}>
-                                <MaterialCommunityIcons name="crown-outline" size={16} color="#FFF" style={{ marginRight: 4 }} />
-                                <Text style={styles.upgradeText}>업그레이드</Text>
-                            </TouchableOpacity>
-                        )}
-                    </View>
-                </SafeAreaView>
-            </LinearGradient>
+            <ParentHeader
+                title="부모님 관리 페이지"
+                subtitle="과제와 보상을 관리해주세요"
+                showUpgrade={!isPremium}
+                onPressUpgrade={handleUpgrade}
+            />
 
             {/* Main Content Area */}
             <ScrollView style={styles.contentContainer} contentContainerStyle={styles.scrollContent}>
@@ -91,16 +74,31 @@ export default function ParentConnectionScreen() {
                             <Text style={styles.cardSectionTitle}>연결된 아이들</Text>
                         </View>
                         <View style={styles.countBadge}>
-                            <Text style={styles.countText}>{connectedChildrenCount}</Text>
+                            <Text style={styles.countText}>{connectedChildren.length}</Text>
                             <Text style={styles.countLabel}>명</Text>
                         </View>
                     </View>
 
-                    <View style={styles.emptyStateContainer}>
-                        <Text style={styles.babyEmoji}>👶</Text>
-                        <Text style={styles.emptyStateTitle}>아직 연결된 아이가 없어요</Text>
-                        <Text style={styles.emptyStateSubtitle}>아이 모드에서 가족 코드를 입력하면 연결됩니다</Text>
-                    </View>
+                    {connectedChildren.length === 0 ? (
+                        <View style={styles.emptyStateContainer}>
+                            <Text style={styles.babyEmoji}>👶</Text>
+                            <Text style={styles.emptyStateTitle}>아직 연결된 아이가 없어요</Text>
+                            <Text style={styles.emptyStateSubtitle}>아이 모드에서 가족 코드를 입력하면 연결됩니다</Text>
+                        </View>
+                    ) : (
+                        <View style={styles.childListContainer}>
+                            {connectedChildren.map((child) => (
+                                <View key={child.childId} style={styles.childRow}>
+                                    <Text style={styles.childAvatar}>{child.avatar}</Text>
+                                    <View style={styles.childInfo}>
+                                        <Text style={styles.childName}>{child.nickname}</Text>
+                                        <Text style={styles.childMeta}>나이: {child.age ?? '미입력'}</Text>
+                                    </View>
+                                    <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />
+                                </View>
+                            ))}
+                        </View>
+                    )}
                 </View>
 
                 {/* Demo Test Card */}
@@ -226,19 +224,21 @@ const styles = StyleSheet.create({
     countBadge: {
         backgroundColor: '#E3F2FD',
         paddingHorizontal: 12,
-        paddingVertical: 6,
+        paddingVertical: 8,
         borderRadius: 15,
-        alignItems: 'center',
+        alignItems: 'baseline',
         justifyContent: 'center',
+        flexDirection: 'row',
+        gap: 2,
     },
     countText: {
         color: '#1565C0',
         fontWeight: 'bold',
-        fontSize: 14,
+        fontSize: 15,
     },
     countLabel: {
         color: '#1565C0',
-        fontSize: 10,
+        fontSize: 11,
     },
     emptyStateContainer: {
         alignItems: 'center',
@@ -259,6 +259,37 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: '#999',
         textAlign: 'center',
+    },
+    childListContainer: {
+        marginTop: -10,
+    },
+    childRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F7FAFF',
+        borderWidth: 1,
+        borderColor: '#DFEAF9',
+        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        marginBottom: 8,
+    },
+    childAvatar: {
+        fontSize: 26,
+        marginRight: 10,
+    },
+    childInfo: {
+        flex: 1,
+    },
+    childName: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#1F2D3D',
+    },
+    childMeta: {
+        marginTop: 2,
+        fontSize: 12,
+        color: '#6E7F96',
     },
     demoCard: {
         backgroundColor: '#FFFDE7', // Light yellow

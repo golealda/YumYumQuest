@@ -4,8 +4,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { getSubscriptionActive } from '../services/subscriptionPreference';
+import ParentHeader from '../../components/parent/ParentHeader';
+import { ConnectedChildSummary, getConnectedChildrenForCurrentParent } from '../../services/childConnectionService';
+import { getSubscriptionActive } from '../../services/subscriptionPreference';
 
 /* 
  * UI Component for the Parent's "Gifts" Screen 
@@ -33,6 +34,7 @@ const CATEGORIES = ['전체', '편의점', '과자', '아이스크림', '디저�
 export default function ParentGiftsScreen() {
     const [activeTab, setActiveTab] = React.useState<'store' | 'inventory'>('store');
     const [isPremium, setIsPremium] = useState(false);
+    const [connectedChildren, setConnectedChildren] = useState<ConnectedChildSummary[]>([]);
 
     // Mock handlers
     const handleUpgrade = () => Alert.alert("알림", "업그레이드 기능은 준비 중입니다.");
@@ -44,9 +46,13 @@ export default function ParentGiftsScreen() {
         useCallback(() => {
             let mounted = true;
             const loadSubscription = async () => {
-                const premium = await getSubscriptionActive();
+                const [premium, children] = await Promise.all([
+                    getSubscriptionActive(),
+                    getConnectedChildrenForCurrentParent(),
+                ]);
                 if (!mounted) return;
                 setIsPremium(premium);
+                setConnectedChildren(children);
             };
             loadSubscription();
             return () => {
@@ -68,34 +74,17 @@ export default function ParentGiftsScreen() {
         </TouchableOpacity>
     );
 
+    const selectedChild = connectedChildren[0] ?? null;
+
     return (
         <View style={styles.container}>
             <StatusBar style="light" />
-
-            {/* Header Section */}
-            <LinearGradient
-                colors={['#448AFF', '#2962FF']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.headerGradient}
-            >
-                <SafeAreaView edges={['top']} style={styles.safeAreaHeader}>
-
-
-                    <View style={styles.headerContent}>
-                        <View>
-                            <Text style={styles.headerTitle}>부모님 관리 페이지</Text>
-                            <Text style={styles.headerSubtitle}>과제와 보상을 관리해주세요</Text>
-                        </View>
-                        {!isPremium && (
-                            <TouchableOpacity style={styles.upgradeButton} onPress={handleUpgrade}>
-                                <MaterialCommunityIcons name="crown-outline" size={16} color="#FFF" style={{ marginRight: 4 }} />
-                                <Text style={styles.upgradeText}>업그레이드</Text>
-                            </TouchableOpacity>
-                        )}
-                    </View>
-                </SafeAreaView>
-            </LinearGradient>
+            <ParentHeader
+                title="부모님 관리 페이지"
+                subtitle="과제와 보상을 관리해주세요"
+                showUpgrade={!isPremium}
+                onPressUpgrade={handleUpgrade}
+            />
 
             <ScrollView
                 style={styles.contentContainer}
@@ -111,18 +100,24 @@ export default function ParentGiftsScreen() {
                     </View>
 
                     <View style={styles.childCardContainer}>
-                        {/* Selected Child Card */}
-                        <LinearGradient
-                            colors={['#FFA000', '#FFB300']}
-                            style={styles.selectedChildCard}
-                        >
-                            <View style={styles.checkBadge}>
-                                <Ionicons name="checkmark-circle" size={24} color="#00C853" />
+                        {selectedChild ? (
+                            <LinearGradient
+                                colors={['#FFA000', '#FFB300']}
+                                style={styles.selectedChildCard}
+                            >
+                                <View style={styles.checkBadge}>
+                                    <Ionicons name="checkmark-circle" size={24} color="#00C853" />
+                                </View>
+                                <Text style={styles.childEmoji}>{selectedChild.avatar}</Text>
+                                <Text style={styles.childName}>{selectedChild.nickname}</Text>
+                                <Text style={styles.childGrain}>연결 완료</Text>
+                            </LinearGradient>
+                        ) : (
+                            <View style={styles.emptyChildCard}>
+                                <Ionicons name="person-add-outline" size={24} color="#90A4AE" />
+                                <Text style={styles.emptyChildText}>연결된 아이가 없어요</Text>
                             </View>
-                            <Text style={styles.childEmoji}>👦</Text>
-                            <Text style={styles.childName}>민준</Text>
-                            <Text style={styles.childGrain}>곡식 0개</Text>
-                        </LinearGradient>
+                        )}
                     </View>
                 </View>
 
@@ -404,6 +399,22 @@ const styles = StyleSheet.create({
     childGrain: {
         color: 'rgba(255,255,255,0.9)',
         fontSize: 12,
+    },
+    emptyChildCard: {
+        width: 180,
+        height: 140,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#E3E7EF',
+        backgroundColor: '#F8FAFD',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 6,
+    },
+    emptyChildText: {
+        fontSize: 13,
+        color: '#70849C',
+        fontWeight: '600',
     },
     actionButtonsRow: {
         flexDirection: 'row',

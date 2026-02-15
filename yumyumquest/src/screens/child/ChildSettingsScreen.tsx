@@ -1,22 +1,24 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { signOut } from 'firebase/auth';
-import React, { useCallback, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, Image, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { auth } from '../firebase';
-import { clearChildSession, getCurrentChildProfile, setChildAutoLoginEnabled } from '../services/childSessionService';
-import { setAutoLoginEnabled } from '../services/sessionPreference';
+import ChildHeader, { ANT_MASCOT } from '../../components/child/ChildHeader';
+import { auth } from '../../firebase';
+import {
+    ChildProfileSyncStatus,
+    clearChildSession,
+    setChildAutoLoginEnabled,
+    subscribeCurrentChildProfile,
+} from '../../services/childSessionService';
+import { setAutoLoginEnabled } from '../../services/sessionPreference';
 
 /*
  * Child Settings Screen
  * Features: Profile card, Theme info, App settings (Notifications, Sound, Dark mode), Help & Support, Logout
  */
-
-const ANT_MASCOT = require('../../assets/ant_mascot.png');
 
 export default function ChildSettingsScreen() {
     const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -24,24 +26,37 @@ export default function ChildSettingsScreen() {
     const [darkModeEnabled, setDarkModeEnabled] = useState(false);
     const [childName, setChildName] = useState('우리 개미');
     const [childAvatar, setChildAvatar] = useState('🐼');
+    const [syncStatus, setSyncStatus] = useState<ChildProfileSyncStatus>('synced');
 
-    useFocusEffect(
-        useCallback(() => {
-            let mounted = true;
-            const loadChildProfile = async () => {
-                const profile = await getCurrentChildProfile();
-                if (!mounted) return;
-                if (profile) {
+    useEffect(() => {
+        let mounted = true;
+        let unsubscribe: (() => void) | null = null;
+
+        const bindChildProfile = async () => {
+            unsubscribe = await subscribeCurrentChildProfile(
+                (profile) => {
+                    if (!mounted) return;
+                    if (!profile) {
+                        setChildName('우리 개미');
+                        setChildAvatar('🐼');
+                        return;
+                    }
                     setChildName(profile.nickname);
                     setChildAvatar(profile.avatar);
+                },
+                (status) => {
+                    if (!mounted) return;
+                    setSyncStatus(status);
                 }
-            };
-            loadChildProfile();
-            return () => {
-                mounted = false;
-            };
-        }, [])
-    );
+            );
+        };
+
+        bindChildProfile();
+        return () => {
+            mounted = false;
+            if (unsubscribe) unsubscribe();
+        };
+    }, []);
 
     const handleLogout = async () => {
         try {
@@ -59,30 +74,7 @@ export default function ChildSettingsScreen() {
     return (
         <View style={styles.container}>
             <StatusBar style="light" />
-
-            {/* Header Section (Consistent with other child screens) */}
-            <LinearGradient
-                colors={['#FF6F00', '#FFA000', '#FFCA28']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.headerGradient}
-            >
-                <SafeAreaView edges={['top']} style={styles.safeAreaHeader}>
-
-
-                    <View style={styles.headerContent}>
-                        <Image source={ANT_MASCOT} style={styles.headerMascot} resizeMode="contain" />
-                        <View style={styles.headerTextContainer}>
-                            <Text style={styles.greetingTitle}>안녕, {childName}!</Text>
-                            <Text style={styles.greetingSubtitle}>오늘도 열심히 일해볼까?</Text>
-                        </View>
-                        <View style={styles.grainBadge}>
-                            <Text style={styles.grainCount}>0</Text>
-                            <Text style={styles.grainLabel}>곡식</Text>
-                        </View>
-                    </View>
-                </SafeAreaView>
-            </LinearGradient>
+            <ChildHeader childName={childName} grainCount={0} syncStatus={syncStatus} />
 
             <ScrollView
                 style={styles.contentContainer}
@@ -296,6 +288,29 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: 'rgba(255,255,255,0.9)',
     },
+    headerRight: {
+        alignItems: 'flex-end',
+    },
+    syncBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 7,
+        paddingVertical: 4,
+        borderRadius: 999,
+        marginBottom: 6,
+        gap: 4,
+    },
+    syncBadgeOffline: {
+        backgroundColor: 'rgba(71, 85, 105, 0.8)',
+    },
+    syncBadgeError: {
+        backgroundColor: 'rgba(220, 38, 38, 0.9)',
+    },
+    syncBadgeText: {
+        color: '#FFF',
+        fontSize: 10,
+        fontWeight: '700',
+    },
     grainBadge: {
         backgroundColor: 'rgba(255,255,255,0.3)',
         borderRadius: 15,
@@ -329,7 +344,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.3,
         shadowRadius: 8,
         elevation: 5,
-        marginTop: -30, // Overlap header
+        marginTop: -10, // Slight overlap to keep a small gap under header
     },
     profileHeader: {
         flexDirection: 'row',
