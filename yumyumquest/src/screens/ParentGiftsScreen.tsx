@@ -1,9 +1,11 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getSubscriptionActive } from '../services/subscriptionPreference';
 
 /* 
  * UI Component for the Parent's "Gifts" Screen 
@@ -30,12 +32,28 @@ const CATEGORIES = ['전체', '편의점', '과자', '아이스크림', '디저�
 
 export default function ParentGiftsScreen() {
     const [activeTab, setActiveTab] = React.useState<'store' | 'inventory'>('store');
+    const [isPremium, setIsPremium] = useState(false);
 
     // Mock handlers
     const handleUpgrade = () => Alert.alert("알림", "업그레이드 기능은 준비 중입니다.");
     const handleStore = () => setActiveTab('store');
     const handleInventory = () => setActiveTab('inventory');
     const handleItemPress = (item: any) => Alert.alert("상품 선택", `${item.name}을(를) 선택했습니다.`);
+
+    useFocusEffect(
+        useCallback(() => {
+            let mounted = true;
+            const loadSubscription = async () => {
+                const premium = await getSubscriptionActive();
+                if (!mounted) return;
+                setIsPremium(premium);
+            };
+            loadSubscription();
+            return () => {
+                mounted = false;
+            };
+        }, [])
+    );
 
     const renderItem = ({ item }: { item: any }) => (
         <TouchableOpacity style={styles.productCard} onPress={() => handleItemPress(item)}>
@@ -69,10 +87,12 @@ export default function ParentGiftsScreen() {
                             <Text style={styles.headerTitle}>부모님 관리 페이지</Text>
                             <Text style={styles.headerSubtitle}>과제와 보상을 관리해주세요</Text>
                         </View>
-                        <TouchableOpacity style={styles.upgradeButton} onPress={handleUpgrade}>
-                            <MaterialCommunityIcons name="crown-outline" size={16} color="#FFF" style={{ marginRight: 4 }} />
-                            <Text style={styles.upgradeText}>업그레이드</Text>
-                        </TouchableOpacity>
+                        {!isPremium && (
+                            <TouchableOpacity style={styles.upgradeButton} onPress={handleUpgrade}>
+                                <MaterialCommunityIcons name="crown-outline" size={16} color="#FFF" style={{ marginRight: 4 }} />
+                                <Text style={styles.upgradeText}>업그레이드</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </SafeAreaView>
             </LinearGradient>

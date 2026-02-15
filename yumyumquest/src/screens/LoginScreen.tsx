@@ -2,7 +2,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Link, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
-import { Alert, Dimensions, Image, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, Image, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { getUserFlowStatus, signIn } from '../services/auth';
 import { getAutoLoginEnabled, setAutoLoginEnabled } from '../services/sessionPreference';
 
@@ -13,6 +13,7 @@ export default function LoginScreen() {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [autoLoginEnabled, setAutoLoginChecked] = useState(true);
+    const [isLoggingIn, setIsLoggingIn] = useState(false);
 
     useEffect(() => {
         const loadPreference = async () => {
@@ -29,14 +30,22 @@ export default function LoginScreen() {
     };
 
     const handleLogin = async () => {
+        if (isLoggingIn) {
+            return;
+        }
+
         if (!email || !password) {
             Alert.alert("알림", "이메일과 비밀번호를 입력해주세요.");
             return;
         }
 
+        setIsLoggingIn(true);
+
         try {
-            await setAutoLoginEnabled(autoLoginEnabled);
-            const user = await signIn(email, password);
+            const [, user] = await Promise.all([
+                setAutoLoginEnabled(autoLoginEnabled),
+                signIn(email, password),
+            ]);
             const flow = await getUserFlowStatus(user.uid);
 
             if (!flow.phoneVerified) {
@@ -61,6 +70,8 @@ export default function LoginScreen() {
                 errorMessage = "이메일 또는 비밀번호가 올바르지 않습니다.";
             }
             Alert.alert("로그인 실패", errorMessage);
+        } finally {
+            setIsLoggingIn(false);
         }
     };
 
@@ -128,7 +139,7 @@ export default function LoginScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    <TouchableOpacity style={styles.autoLoginRow} onPress={handleToggleAutoLogin}>
+                    <TouchableOpacity style={styles.autoLoginRow} onPress={handleToggleAutoLogin} disabled={isLoggingIn}>
                         <Ionicons
                             name={autoLoginEnabled ? "checkbox-outline" : "square-outline"}
                             size={20}
@@ -138,8 +149,16 @@ export default function LoginScreen() {
                     </TouchableOpacity>
 
                     {/* Login Button */}
-                    <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-                        <Text style={styles.loginButtonText}>로그인</Text>
+                    <TouchableOpacity
+                        style={[styles.loginButton, isLoggingIn && styles.loginButtonDisabled]}
+                        onPress={handleLogin}
+                        disabled={isLoggingIn}
+                    >
+                        {isLoggingIn ? (
+                            <ActivityIndicator color="#FFF" />
+                        ) : (
+                            <Text style={styles.loginButtonText}>로그인</Text>
+                        )}
                     </TouchableOpacity>
 
                     {/* Divider */}
@@ -306,6 +325,9 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.3,
         shadowRadius: 8,
         elevation: 4,
+    },
+    loginButtonDisabled: {
+        opacity: 0.85,
     },
     loginButtonText: {
         color: '#FFF',

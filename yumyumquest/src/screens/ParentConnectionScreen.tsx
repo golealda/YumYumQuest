@@ -1,9 +1,11 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getSubscriptionActive } from '../services/subscriptionPreference';
 
 /* 
  * UI Component for the Parent's "Connection" Screen 
@@ -13,19 +15,31 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function ParentConnectionScreen() {
     // Mock state for children, empty as per image
     const connectedChildrenCount = 0;
+    const [isPremium, setIsPremium] = useState(false);
 
     // Mock handlers
     const handleUpgrade = () => {
         Alert.alert("알림", "업그레이드 기능은 준비 중입니다.");
     };
 
-    const handleGenerateCode = () => {
-        Alert.alert("코드 생성", "새로운 가족 코드가 생성되었습니다: A1B2C3");
-    };
-
     const handleAddChildManually = () => {
         Alert.alert("아이 추가", "아이 직접 추가하기 화면으로 이동합니다.");
     };
+
+    useFocusEffect(
+        useCallback(() => {
+            let mounted = true;
+            const loadSubscription = async () => {
+                const premium = await getSubscriptionActive();
+                if (!mounted) return;
+                setIsPremium(premium);
+            };
+            loadSubscription();
+            return () => {
+                mounted = false;
+            };
+        }, [])
+    );
 
     return (
         <View style={styles.container}>
@@ -47,10 +61,12 @@ export default function ParentConnectionScreen() {
                             <Text style={styles.headerTitle}>부모님 관리 페이지</Text>
                             <Text style={styles.headerSubtitle}>과제와 보상을 관리해주세요</Text>
                         </View>
-                        <TouchableOpacity style={styles.upgradeButton} onPress={handleUpgrade}>
-                            <MaterialCommunityIcons name="crown-outline" size={16} color="#FFF" style={{ marginRight: 4 }} />
-                            <Text style={styles.upgradeText}>업그레이드</Text>
-                        </TouchableOpacity>
+                        {!isPremium && (
+                            <TouchableOpacity style={styles.upgradeButton} onPress={handleUpgrade}>
+                                <MaterialCommunityIcons name="crown-outline" size={16} color="#FFF" style={{ marginRight: 4 }} />
+                                <Text style={styles.upgradeText}>업그레이드</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </SafeAreaView>
             </LinearGradient>
@@ -66,29 +82,6 @@ export default function ParentConnectionScreen() {
                     </View>
                     <Text style={styles.sectionSubtitle}>아이와 앱을 연결하여 함께 사용하세요</Text>
                 </View>
-
-                {/* Family Code Card */}
-                <LinearGradient
-                    colors={['#448AFF', '#7C4DFF']} // Blue to Purple gradient
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0.5 }}
-                    style={styles.codeCard}
-                >
-                    <View style={styles.codeHeader}>
-                        <View>
-                            <Text style={styles.codeTitle}>우리 가족 코드</Text>
-                            <Text style={styles.codeSubtitle}>아이가 이 코드로 연결할 수 있어요</Text>
-                        </View>
-                        <Text style={styles.familyEmoji}>👨‍👩‍👧‍👦</Text>
-                    </View>
-
-                    <View style={styles.codeActionBox}>
-                        <TouchableOpacity style={styles.generateButton} onPress={handleGenerateCode}>
-                            <Text style={styles.generateButtonText}>코드 생성하기</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.generateHint}>처음 사용하시나요? 가족 코드를 만들어보세요</Text>
-                    </View>
-                </LinearGradient>
 
                 {/* Connected Children Card */}
                 <View style={styles.childrenCard}>
@@ -206,53 +199,6 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#666',
         marginLeft: 0,
-    },
-    codeCard: {
-        borderRadius: 20,
-        padding: 20,
-        marginBottom: 20,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-        elevation: 5,
-    },
-    codeHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: 20,
-    },
-    codeTitle: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: 'rgba(255,255,255,0.9)',
-        marginBottom: 5,
-    },
-    codeSubtitle: {
-        fontSize: 13,
-        color: 'rgba(255,255,255,0.7)',
-    },
-    familyEmoji: {
-        fontSize: 40,
-    },
-    codeActionBox: {
-        backgroundColor: 'rgba(255,255,255,0.15)',
-        borderRadius: 15,
-        padding: 15,
-        alignItems: 'center',
-    },
-    generateButton: {
-        marginBottom: 8,
-    },
-    generateButtonText: {
-        color: '#FFF',
-        fontSize: 18,
-        fontWeight: 'bold',
-    },
-    generateHint: {
-        color: 'rgba(255,255,255,0.7)',
-        fontSize: 12,
     },
     childrenCard: {
         backgroundColor: '#FFF',

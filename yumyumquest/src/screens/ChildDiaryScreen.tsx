@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { getCurrentChildProfile } from '../services/childSessionService';
 
 // Use the existing mascot image (assumed path based on previous context)
 // If imports fail, I will fallback to emoji, but user said they added ant_mascot.png
@@ -25,6 +27,26 @@ export default function ChildDiaryScreen() {
         { id: '5', text: '편식 안 하기', reward: 10, completed: false },
         { id: '6', text: '양치질 하기', reward: 5, completed: false },
     ]);
+    const [childName, setChildName] = useState('우리 개미');
+    const [childAvatar, setChildAvatar] = useState('🐼');
+
+    useFocusEffect(
+        useCallback(() => {
+            let mounted = true;
+            const loadChildProfile = async () => {
+                const profile = await getCurrentChildProfile();
+                if (!mounted) return;
+                if (profile) {
+                    setChildName(profile.nickname);
+                    setChildAvatar(profile.avatar);
+                }
+            };
+            loadChildProfile();
+            return () => {
+                mounted = false;
+            };
+        }, [])
+    );
 
     const toggleTask = (id: string) => {
         setTasks(tasks.map(task =>
@@ -49,7 +71,7 @@ export default function ChildDiaryScreen() {
                     <View style={styles.headerContent}>
                         <Image source={ANT_MASCOT} style={styles.headerMascot} resizeMode="contain" />
                         <View style={styles.headerTextContainer}>
-                            <Text style={styles.greetingTitle}>안녕, 우리 개미!</Text>
+                            <Text style={styles.greetingTitle}>안녕, {childName}!</Text>
                             <Text style={styles.greetingSubtitle}>오늘도 열심히 일해볼까?</Text>
                         </View>
                         <View style={styles.grainBadge}>
@@ -69,7 +91,7 @@ export default function ChildDiaryScreen() {
                 <View style={styles.messageCard}>
                     <Image source={ANT_MASCOT} style={styles.messageMascot} resizeMode="contain" />
                     <View style={styles.messageTextContainer}>
-                        <Text style={styles.messageTitle}>개미가 말해요</Text>
+                        <Text style={styles.messageTitle}>{childAvatar} {childName}에게</Text>
                         <Text style={styles.messageBody}>오늘도 열심히 일하면 곡식을 모을 수 있어!</Text>
                     </View>
                 </View>

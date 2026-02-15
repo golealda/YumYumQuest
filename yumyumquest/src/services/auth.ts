@@ -29,13 +29,6 @@ export async function upsertUserProfile(user: User) {
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
         });
-    } else {
-        // Update existing user document
-        await setDoc(
-            ref,
-            { updatedAt: serverTimestamp() },
-            { merge: true }
-        );
     }
 }
 
@@ -76,10 +69,16 @@ export async function getUserFlowStatus(uid: string): Promise<UserFlowStatus> {
     const userSnap = await getDoc(userRef);
     const data = userSnap.data();
 
-    let phoneVerified = !!data?.phoneVerified;
-    let onboardingCompleted = !!data?.onboardingCompleted;
+    const hasPhoneVerifiedField = typeof data?.phoneVerified === "boolean";
+    const hasOnboardingCompletedField = typeof data?.onboardingCompleted === "boolean";
 
-    if (!onboardingCompleted) {
+    let phoneVerified = hasPhoneVerifiedField ? data!.phoneVerified : false;
+    let onboardingCompleted = hasOnboardingCompletedField ? data!.onboardingCompleted : false;
+
+    // Legacy fallback:
+    // only check parents collection when flow flags are missing.
+    // This avoids an extra read on every login for users whose flags are already set.
+    if (!hasPhoneVerifiedField || !hasOnboardingCompletedField) {
         const parentRef = doc(db, "parents", uid);
         const parentSnap = await getDoc(parentRef);
         if (parentSnap.exists()) {
