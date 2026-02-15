@@ -4,7 +4,7 @@ import React from 'react';
 import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const ANT_MASCOT = require('../../assets/ant_mascot.png');
+const ANT_MASCOT = require('../../../assets/ant_mascot.png');
 
 export default function ChildGiftsScreen() {
     return (

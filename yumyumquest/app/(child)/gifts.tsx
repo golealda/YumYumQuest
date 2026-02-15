@@ -1,4 +1,4 @@
-import ChildGiftsScreen from '../../src/screens/ChildGiftsScreen';
+import ChildGiftsScreen from '../../src/screens/child/ChildGiftsScreen';
 
 export default function Page() {
     return <ChildGiftsScreen />;

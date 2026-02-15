@@ -32,6 +32,13 @@ export interface ChildLinkRequest {
     updatedAt?: Timestamp;
 }
 
+export interface ConnectedChildSummary {
+    childId: string;
+    nickname: string;
+    avatar: string;
+    age?: number;
+}
+
 export interface ParentApprovalPayload {
     confirmedNickname: string;
     confirmedAge: number;
@@ -213,5 +220,29 @@ export const rejectChildLinkRequest = async (requestId: string, rejectionReason:
         parentUid: user.uid,
         rejectionReason: rejectionReason.trim() || '보호자가 요청을 거절했어요.',
         updatedAt: serverTimestamp(),
+    });
+};
+
+export const getConnectedChildrenForCurrentParent = async (): Promise<ConnectedChildSummary[]> => {
+    const user = auth.currentUser;
+    if (!user) return [];
+
+    const parentSnap = await getDoc(doc(db, 'parents', user.uid));
+    if (!parentSnap.exists()) return [];
+
+    const familyCode = parentSnap.data().groupId as string | null;
+    if (!familyCode) return [];
+
+    const q = query(collection(db, 'children'), where('familyCode', '==', familyCode));
+    const snaps = await getDocs(q);
+
+    return snaps.docs.map((snap) => {
+        const data = snap.data();
+        return {
+            childId: snap.id,
+            nickname: data.nickname ?? '아이',
+            avatar: data.avatar ?? '🐼',
+            age: data.age ?? undefined,
+        };
     });
 };

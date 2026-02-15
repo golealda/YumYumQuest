@@ -1,17 +1,11 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import ChildHeader from '../../components/child/ChildHeader';
+import ChildShopItemCard, { ShopItem } from '../../components/child/ChildShopItemCard';
 
-const ANT_MASCOT = require('../../assets/ant_mascot.png');
-// We need a grasshopper mascot or placeholder
-// Assuming we don't have it, I'll use text or a placeholder emoji for now. 
-// User image shows a grasshopper. I will use an emoji 🦗 if no image is available, 
-// or just a placeholder View to match layout.
-
-const SHOP_ITEMS = [
+const SHOP_ITEMS: ShopItem[] = [
     { id: 1, name: 'TV 30분 시청권', price: 20, emoji: '📺' },
     { id: 2, name: '사탕 1개', price: 10, emoji: '🍬' },
     { id: 3, name: '키즈카페 이용권', price: 50, emoji: '🎡', locked: true, shortage: 20 }, // Example logic: price 50, user has 30 => short 20
@@ -22,30 +16,7 @@ export default function ChildShopScreen() {
     return (
         <View style={styles.container}>
             <StatusBar style="light" />
-
-            {/* Header Gradient - Reusing style for consistency */}
-            <LinearGradient
-                colors={['#FF6F00', '#FFA000', '#FFCA28']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.headerGradient}
-            >
-                <SafeAreaView edges={['top']} style={styles.safeAreaHeader}>
-
-
-                    <View style={styles.headerContent}>
-                        <Image source={ANT_MASCOT} style={styles.headerMascot} resizeMode="contain" />
-                        <View style={styles.headerTextContainer}>
-                            <Text style={styles.greetingTitle}>안녕, 우리 개미!</Text>
-                            <Text style={styles.greetingSubtitle}>오늘도 열심히 일해볼까?</Text>
-                        </View>
-                        <View style={styles.grainBadge}>
-                            <Text style={styles.grainCount}>30</Text>
-                            <Text style={styles.grainLabel}>곡식</Text>
-                        </View>
-                    </View>
-                </SafeAreaView>
-            </LinearGradient>
+            <ChildHeader childName="우리 개미" grainCount={30} />
 
             <ScrollView
                 style={styles.contentContainer}
@@ -68,45 +39,7 @@ export default function ChildShopScreen() {
 
                 {/* Shop Items List */}
                 <View style={styles.itemsList}>
-                    {SHOP_ITEMS.map((item) => (
-                        <View key={item.id} style={styles.itemCard}>
-                            <View style={styles.itemLeft}>
-                                <View style={styles.itemEmojiContainer}>
-                                    <Text style={styles.itemEmoji}>{item.emoji}</Text>
-                                </View>
-
-                                <View style={styles.itemInfo}>
-                                    <Text style={styles.itemName}>{item.name}</Text>
-                                    <View style={styles.priceContainer}>
-                                        <Text style={styles.grainIcon}>🌾</Text>
-                                        <Text style={styles.priceText}>{item.price} <Text style={styles.grainUnit}>곡식</Text></Text>
-                                    </View>
-                                </View>
-                            </View>
-
-                            {/* Button Section */}
-                            <View>
-                                {item.locked ? (
-                                    <View style={styles.lockedButton}>
-                                        <MaterialCommunityIcons name="lock-outline" size={18} color="#9E9E9E" style={{ marginBottom: 2 }} />
-                                        <Text style={styles.shortageText}>{item.shortage} 부족</Text>
-                                    </View>
-                                ) : (
-                                    <TouchableOpacity>
-                                        <LinearGradient
-                                            colors={['#D500F9', '#F50057']}
-                                            start={{ x: 0, y: 0 }}
-                                            end={{ x: 1, y: 0 }}
-                                            style={styles.purchaseButton}
-                                        >
-                                            <MaterialCommunityIcons name="cart-outline" size={20} color="#FFF" style={{ marginRight: 4 }} />
-                                            <Text style={styles.purchaseButtonText}>구매</Text>
-                                        </LinearGradient>
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-                        </View>
-                    ))}
+                    {SHOP_ITEMS.map((item) => <ChildShopItemCard key={item.id} item={item} />)}
                 </View>
 
                 <View style={{ height: 100 }} />
@@ -195,7 +128,7 @@ const styles = StyleSheet.create({
         padding: 25,
         flexDirection: 'row',
         alignItems: 'center',
-        marginTop: -30, // Overlap header
+        marginTop: -10, // Slight overlap to keep a small gap under header
         marginBottom: 20,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },

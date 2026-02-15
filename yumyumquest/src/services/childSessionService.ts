@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 
 const CHILD_AUTO_LOGIN_KEY = 'child_auto_login_enabled';
@@ -11,6 +11,8 @@ export interface ChildProfile {
     avatar: string;
     age?: number;
 }
+
+export type ChildProfileSyncStatus = 'synced' | 'offline' | 'error';
 
 export const getChildAutoLoginEnabled = async (): Promise<boolean> => {
     try {
@@ -84,4 +86,42 @@ export const getCurrentChildProfile = async (): Promise<ChildProfile | null> => 
         console.error('Error reading current child profile:', error);
         return null;
     }
+};
+
+export const subscribeCurrentChildProfile = async (
+    onChange: (profile: ChildProfile | null) => void,
+    onSyncStatus?: (status: ChildProfileSyncStatus) => void
+): Promise<() => void> => {
+    const childId = await getChildSessionId();
+    if (!childId) {
+        onChange(null);
+        onSyncStatus?.('error');
+        return () => {};
+    }
+
+    const childRef = doc(db, 'children', childId);
+    const unsubscribe = onSnapshot(
+        childRef,
+        (snap) => {
+            onSyncStatus?.(snap.metadata.fromCache ? 'offline' : 'synced');
+            if (!snap.exists()) {
+                onChange(null);
+                return;
+            }
+            const data = snap.data();
+            onChange({
+                childId,
+                nickname: data.nickname ?? '아이',
+                avatar: data.avatar ?? '🐼',
+                age: data.age ?? undefined,
+            });
+        },
+        (error) => {
+            console.error('Error subscribing current child profile:', error);
+            onSyncStatus?.('error');
+            onChange(null);
+        }
+    );
+
+    return unsubscribe;
 };

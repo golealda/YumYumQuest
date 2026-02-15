@@ -1,6 +1,5 @@
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
@@ -14,15 +13,17 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import ParentHeader from '../../components/parent/ParentHeader';
 import {
     approveChildLinkRequest,
     ChildLinkRequest,
+    ConnectedChildSummary,
+    getConnectedChildrenForCurrentParent,
     getPendingChildLinkRequestsForCurrentParent,
     ParentApprovalPayload,
     rejectChildLinkRequest,
-} from '../services/childConnectionService';
-import { getSubscriptionActive } from '../services/subscriptionPreference';
+} from '../../services/childConnectionService';
+import { getSubscriptionActive } from '../../services/subscriptionPreference';
 
 const DEFAULT_FORM = {
     confirmedNickname: '',
@@ -43,6 +44,7 @@ export default function ParentApprovalScreen() {
     const [isPremium, setIsPremium] = useState(false);
     const [loading, setLoading] = useState(true);
     const [requests, setRequests] = useState<ChildLinkRequest[]>([]);
+    const [connectedChildren, setConnectedChildren] = useState<ConnectedChildSummary[]>([]);
     const [selectedRequest, setSelectedRequest] = useState<ChildLinkRequest | null>(null);
     const [submitting, setSubmitting] = useState(false);
 
@@ -53,12 +55,14 @@ export default function ParentApprovalScreen() {
     const loadData = useCallback(async () => {
         setLoading(true);
         try {
-            const [premium, pendingRequests] = await Promise.all([
+            const [premium, pendingRequests, children] = await Promise.all([
                 getSubscriptionActive(),
                 getPendingChildLinkRequestsForCurrentParent(),
+                getConnectedChildrenForCurrentParent(),
             ]);
             setIsPremium(premium);
             setRequests(pendingRequests);
+            setConnectedChildren(children);
         } finally {
             setLoading(false);
         }
@@ -141,29 +145,43 @@ export default function ParentApprovalScreen() {
     return (
         <View style={styles.container}>
             <StatusBar style="light" />
-
-            <LinearGradient colors={['#448AFF', '#2962FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.headerGradient}>
-                <SafeAreaView edges={['top']} style={styles.safeAreaHeader}>
-                    <View style={styles.headerContent}>
-                        <View>
-                            <Text style={styles.headerTitle}>부모님 관리 페이지</Text>
-                            <Text style={styles.headerSubtitle}>아이 연결 요청 승인/거절</Text>
-                        </View>
-                        {!isPremium && (
-                            <View style={styles.upgradeButton}>
-                                <MaterialCommunityIcons name="crown-outline" size={16} color="#FFF" style={{ marginRight: 4 }} />
-                                <Text style={styles.upgradeText}>업그레이드</Text>
-                            </View>
-                        )}
-                    </View>
-                </SafeAreaView>
-            </LinearGradient>
+            <ParentHeader
+                title="부모님 관리 페이지"
+                subtitle="아이 연결 요청 승인/거절"
+                showUpgrade={!isPremium}
+            />
 
             <ScrollView style={styles.contentContainer} contentContainerStyle={styles.scrollContent}>
                 {loading ? (
                     <ActivityIndicator size="large" color="#2962FF" />
                 ) : (
                     <>
+                        <View style={styles.connectedCard}>
+                            <View style={styles.connectedHeader}>
+                                <View style={styles.connectedTitleRow}>
+                                    <Ionicons name="people-outline" size={18} color="#2962FF" style={{ marginRight: 6 }} />
+                                    <Text style={styles.connectedTitle}>연결된 아이</Text>
+                                </View>
+                                <View style={styles.connectedCountBadge}>
+                                    <Text style={styles.connectedCountText}>{connectedChildren.length}명</Text>
+                                </View>
+                            </View>
+                            {connectedChildren.length === 0 ? (
+                                <Text style={styles.connectedEmptyText}>아직 연결된 아이가 없습니다.</Text>
+                            ) : (
+                                connectedChildren.map((child) => (
+                                    <View key={child.childId} style={styles.connectedChildRow}>
+                                        <Text style={styles.connectedChildAvatar}>{child.avatar}</Text>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.connectedChildName}>{child.nickname}</Text>
+                                            <Text style={styles.connectedChildMeta}>나이: {child.age ?? '미입력'}</Text>
+                                        </View>
+                                        <Ionicons name="checkmark-circle" size={18} color="#2E7D32" />
+                                    </View>
+                                ))
+                            )}
+                        </View>
+
                         {selectedRequest && (
                             <View style={styles.formCard}>
                                 <Text style={styles.formTitle}>승인 정보 입력</Text>
@@ -299,6 +317,58 @@ const styles = StyleSheet.create({
     upgradeText: { color: '#FFF', fontWeight: 'bold', fontSize: 12 },
     contentContainer: { flex: 1 },
     scrollContent: { padding: 20 },
+    connectedCard: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 16,
+        padding: 14,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: '#DCE7FF',
+    },
+    connectedHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 10,
+    },
+    connectedTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    connectedTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#203047',
+    },
+    connectedCountBadge: {
+        backgroundColor: '#E3F2FD',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    connectedCountText: {
+        color: '#1565C0',
+        fontWeight: '700',
+        fontSize: 12,
+    },
+    connectedEmptyText: {
+        color: '#6A7B90',
+        fontSize: 13,
+    },
+    connectedChildRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#DFEAF9',
+        backgroundColor: '#F7FAFF',
+        borderRadius: 10,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        marginBottom: 8,
+    },
+    connectedChildAvatar: { fontSize: 22, marginRight: 8 },
+    connectedChildName: { fontSize: 14, fontWeight: '700', color: '#203047' },
+    connectedChildMeta: { fontSize: 12, color: '#6A7B90', marginTop: 2 },
     emptyCard: {
         backgroundColor: '#FFFFFF',
         borderRadius: 24,

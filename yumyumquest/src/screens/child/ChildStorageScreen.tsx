@@ -1,11 +1,8 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
-import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
-const ANT_MASCOT = require('../../assets/ant_mascot.png');
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import ChildHeader from '../../components/child/ChildHeader';
 
 export default function ChildStorageScreen() {
     // Generate an array of 30 grains for visualization
@@ -14,30 +11,7 @@ export default function ChildStorageScreen() {
     return (
         <View style={styles.container}>
             <StatusBar style="light" />
-
-            {/* Header Gradient - Reusing style from Diary Screen for consistency */}
-            <LinearGradient
-                colors={['#FF6F00', '#FFA000', '#FFCA28']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.headerGradient}
-            >
-                <SafeAreaView edges={['top']} style={styles.safeAreaHeader}>
-
-
-                    <View style={styles.headerContent}>
-                        <Image source={ANT_MASCOT} style={styles.headerMascot} resizeMode="contain" />
-                        <View style={styles.headerTextContainer}>
-                            <Text style={styles.greetingTitle}>안녕, 우리 개미!</Text>
-                            <Text style={styles.greetingSubtitle}>오늘도 열심히 일해볼까?</Text>
-                        </View>
-                        <View style={styles.grainBadge}>
-                            <Text style={styles.grainCount}>30</Text>
-                            <Text style={styles.grainLabel}>곡식</Text>
-                        </View>
-                    </View>
-                </SafeAreaView>
-            </LinearGradient>
+            <ChildHeader childName="우리 개미" grainCount={30} />
 
             <ScrollView
                 style={styles.contentContainer}
@@ -174,7 +148,7 @@ const styles = StyleSheet.create({
         borderRadius: 24,
         padding: 25,
         alignItems: 'center',
-        marginTop: -30, // Overlap header
+        marginTop: -10, // Slight overlap to keep a small gap under header
         marginBottom: 20,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },

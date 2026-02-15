@@ -8,7 +8,6 @@ import {
     Keyboard,
     KeyboardAvoidingView,
     Platform,
-    SafeAreaView,
     ScrollView,
     StyleSheet,
     Text,
@@ -17,19 +16,20 @@ import {
     TouchableWithoutFeedback,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
     clearActiveChildLinkRequestId,
     createChildLinkRequest,
     getActiveChildLinkRequestId,
     getChildLinkRequestById,
-} from '../services/childConnectionService';
+} from '../../services/childConnectionService';
 import {
     getChildAutoLoginEnabled,
     getChildSessionId,
     isChildSessionValid,
     setChildAutoLoginEnabled,
     setChildSessionId,
-} from '../services/childSessionService';
+} from '../../services/childSessionService';
 
 const AVATARS = ['👦', '👧', '👱‍♀️', '👶', '🐻', '🐰', '🐼', '🦊'];
 const AGE_OPTIONS = [3, 4, 5, 6];

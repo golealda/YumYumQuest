@@ -8,17 +8,18 @@ import { signOut } from 'firebase/auth';
 import React, { useCallback, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { auth, db } from '../firebase';
-import { getOrCreateFamilyCode } from '../services/onboardingService';
-import { setAutoLoginEnabled } from '../services/sessionPreference';
+import ParentHeader from '../../components/parent/ParentHeader';
+import { auth, db } from '../../firebase';
+import { ConnectedChildSummary, getConnectedChildrenForCurrentParent } from '../../services/childConnectionService';
+import { getOrCreateFamilyCode } from '../../services/onboardingService';
+import { setAutoLoginEnabled } from '../../services/sessionPreference';
 import {
     getSelectedTheme,
     getSubscriptionActive,
     ParentThemeId,
     setSelectedTheme,
-} from '../services/subscriptionPreference';
-import { Parent } from '../types/firestore';
+} from '../../services/subscriptionPreference';
+import { Parent } from '../../types/firestore';
 
 /* 
  * UI Component for the Parent's "Settings" Screen 
@@ -35,10 +36,13 @@ export default function ParentSettingsScreen() {
     const [profileEmail, setProfileEmail] = useState('');
     const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
     const [familyCode, setFamilyCode] = useState('');
+    const [connectedChildren, setConnectedChildren] = useState<ConnectedChildSummary[]>([]);
 
     const handleUpgrade = () => router.push('/subscription');
     const handlePremiumInfo = () => router.push('/subscription');
     const handleOpenPremiumLab = () => router.push('/premium-lab');
+    const handleEditChildProfile = (childId: string) =>
+        router.push({ pathname: '/child-profile-edit', params: { childId } });
 
     const handleCopyFamilyCode = async () => {
         if (!familyCode) return;
@@ -57,7 +61,11 @@ export default function ParentSettingsScreen() {
 
             const loadThemeState = async () => {
                 const user = auth.currentUser;
-                const [premium, selectedTheme] = await Promise.all([getSubscriptionActive(), getSelectedTheme()]);
+                const [premium, selectedTheme, children] = await Promise.all([
+                    getSubscriptionActive(),
+                    getSelectedTheme(),
+                    getConnectedChildrenForCurrentParent(),
+                ]);
 
                 let parentData: Partial<Parent> | null = null;
                 if (user) {
@@ -69,6 +77,7 @@ export default function ParentSettingsScreen() {
                 if (!mounted) return;
                 setIsPremium(premium);
                 setSelectedThemeId(selectedTheme);
+                setConnectedChildren(children);
                 setProfileName(parentData?.displayName || user?.displayName || '보호자');
                 setProfileEmail(parentData?.email || user?.email || '');
                 setProfilePhotoUrl(parentData?.photoUrl || user?.photoURL || null);
@@ -292,6 +301,32 @@ export default function ParentSettingsScreen() {
                                 <Text style={styles.familyCodeHint}>아이 모드에서 이 코드를 입력하면 연결됩니다.</Text>
                             </View>
 
+                            <View style={styles.childManageCard}>
+                                <View style={styles.childManageHeader}>
+                                    <Ionicons name="people-outline" size={18} color="#2962FF" style={{ marginRight: 6 }} />
+                                    <Text style={styles.childManageTitle}>아이 정보 수정</Text>
+                                </View>
+                                {connectedChildren.length === 0 ? (
+                                    <Text style={styles.childManageEmptyText}>연결된 아이가 없어 수정할 수 없어요.</Text>
+                                ) : (
+                                    connectedChildren.map((child) => (
+                                        <View key={child.childId} style={styles.childManageRow}>
+                                            <Text style={styles.childManageAvatar}>{child.avatar}</Text>
+                                            <View style={styles.childManageInfo}>
+                                                <Text style={styles.childManageName}>{child.nickname}</Text>
+                                                <Text style={styles.childManageMeta}>나이: {child.age ?? '미입력'}</Text>
+                                            </View>
+                                            <TouchableOpacity
+                                                style={styles.childEditButton}
+                                                onPress={() => handleEditChildProfile(child.childId)}
+                                            >
+                                                <Text style={styles.childEditButtonText}>편집</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    ))
+                                )}
+                            </View>
+
                             <TouchableOpacity style={styles.menuItem}>
                                 <Ionicons name="notifications-outline" size={22} color="#555" style={{ marginRight: 12 }} />
                                 <Text style={styles.menuText}>알림 설정</Text>
@@ -327,57 +362,16 @@ export default function ParentSettingsScreen() {
     return (
         <View style={styles.container}>
             <StatusBar style="light" />
-
-            {/* Header Section with Blue Gradient */}
-            <LinearGradient
-                colors={['#2979FF', '#2962FF']} // Blue gradient
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.headerGradient}
-            >
-                <SafeAreaView edges={['top']} style={styles.safeAreaHeader}>
-
-
-                    <View style={styles.headerContent}>
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.headerTitle}>부모님 관리 페이지</Text>
-                            <Text style={styles.headerSubtitle}>과제와 보상을 관리해주세요</Text>
-                        </View>
-                        {!isPremium && (
-                            <TouchableOpacity style={styles.topUpgradeButton} onPress={handleUpgrade}>
-                                <MaterialCommunityIcons name="crown-outline" size={16} color="#FFF" style={{ marginRight: 4 }} />
-                                <Text style={styles.upgradeText}>업그레이드</Text>
-                            </TouchableOpacity>
-                        )}
-                    </View>
-                </SafeAreaView>
-            </LinearGradient>
+            <ParentHeader
+                title="부모님 관리 페이지"
+                subtitle="과제와 보상을 관리해주세요"
+                showUpgrade={!isPremium}
+                onPressUpgrade={handleUpgrade}
+                colors={['#2979FF', '#2962FF']}
+            />
 
             {/* Main Content Area */}
             <ScrollView style={styles.contentContainer} contentContainerStyle={styles.scrollContent}>
-
-                {/* Child Selection Section */}
-                <View style={styles.sectionContainer}>
-                    <View style={styles.sectionHeaderRow}>
-                        <Text style={styles.familyEmoji}>👨‍👩‍👧‍👦</Text>
-                        <Text style={styles.sectionTitle}>아이 선택</Text>
-                    </View>
-
-                    <View style={styles.childCardContainer}>
-                        {/* Selected Child Card */}
-                        <LinearGradient
-                            colors={['#FFA000', '#FFB300']} // Orange gradient
-                            style={styles.selectedChildCard}
-                        >
-                            <View style={styles.checkBadge}>
-                                <Ionicons name="checkmark-sharp" size={16} color="#FFF" />
-                            </View>
-                            <Text style={styles.childEmoji}>🐼</Text>
-                            <Text style={styles.childName}>민준</Text>
-                            <Text style={styles.childGrain}>곡식 0개</Text>
-                        </LinearGradient>
-                    </View>
-                </View>
 
                 {/* Tab Navigation Buttons */}
                 <View style={styles.tabsRow}>
@@ -475,7 +469,9 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     scrollContent: {
-        padding: 20,
+        paddingHorizontal: 20,
+        paddingTop: 8,
+        paddingBottom: 20,
     },
     sectionContainer: {
         backgroundColor: '#FFF',
@@ -544,6 +540,22 @@ const styles = StyleSheet.create({
     childGrain: {
         color: 'rgba(255,255,255,0.9)',
         fontSize: 12,
+    },
+    emptyChildCard: {
+        width: 180,
+        height: 120,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: '#E3E7EF',
+        backgroundColor: '#F8FAFD',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 6,
+    },
+    emptyChildText: {
+        fontSize: 13,
+        color: '#70849C',
+        fontWeight: '600',
     },
 
     /* Tabs */
@@ -757,6 +769,69 @@ const styles = StyleSheet.create({
         marginTop: 4,
         fontSize: 12,
         color: '#4D6A96',
+    },
+    childManageCard: {
+        backgroundColor: '#F8FAFF',
+        borderWidth: 1,
+        borderColor: '#DCE7FF',
+        borderRadius: 14,
+        padding: 12,
+        marginBottom: 12,
+    },
+    childManageHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    childManageTitle: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#254C8A',
+    },
+    childManageEmptyText: {
+        fontSize: 13,
+        color: '#6A7B90',
+    },
+    childManageRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#E5EDF9',
+        borderRadius: 10,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        marginTop: 8,
+    },
+    childManageAvatar: {
+        fontSize: 24,
+        marginRight: 10,
+    },
+    childManageInfo: {
+        flex: 1,
+    },
+    childManageName: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#1F2D3D',
+    },
+    childManageMeta: {
+        fontSize: 12,
+        color: '#6E7F96',
+        marginTop: 2,
+    },
+    childEditButton: {
+        backgroundColor: '#E8F1FF',
+        borderWidth: 1,
+        borderColor: '#C5DAFF',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 8,
+    },
+    childEditButtonText: {
+        color: '#2459AE',
+        fontSize: 12,
+        fontWeight: '700',
     },
     menuItem: {
         flexDirection: 'row',
