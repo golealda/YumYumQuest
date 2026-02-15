@@ -1,10 +1,15 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
-import { Image, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { signOut } from 'firebase/auth';
+import React, { useCallback, useState } from 'react';
+import { Alert, Image, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { auth } from '../firebase';
+import { clearChildSession, getCurrentChildProfile, setChildAutoLoginEnabled } from '../services/childSessionService';
+import { setAutoLoginEnabled } from '../services/sessionPreference';
 
 /*
  * Child Settings Screen
@@ -17,11 +22,38 @@ export default function ChildSettingsScreen() {
     const [notificationsEnabled, setNotificationsEnabled] = useState(true);
     const [soundEnabled, setSoundEnabled] = useState(true);
     const [darkModeEnabled, setDarkModeEnabled] = useState(false);
+    const [childName, setChildName] = useState('우리 개미');
+    const [childAvatar, setChildAvatar] = useState('🐼');
 
-    const handleLogout = () => {
-        // Implement logout logic here
-        // For now just navigate to root
-        router.replace('/');
+    useFocusEffect(
+        useCallback(() => {
+            let mounted = true;
+            const loadChildProfile = async () => {
+                const profile = await getCurrentChildProfile();
+                if (!mounted) return;
+                if (profile) {
+                    setChildName(profile.nickname);
+                    setChildAvatar(profile.avatar);
+                }
+            };
+            loadChildProfile();
+            return () => {
+                mounted = false;
+            };
+        }, [])
+    );
+
+    const handleLogout = async () => {
+        try {
+            await signOut(auth);
+            await setAutoLoginEnabled(false);
+            await setChildAutoLoginEnabled(false);
+            await clearChildSession();
+            router.replace('/login');
+        } catch (error) {
+            console.error('Logout error:', error);
+            Alert.alert('로그아웃 실패', '로그아웃 중 문제가 발생했습니다. 다시 시도해주세요.');
+        }
     };
 
     return (
@@ -41,7 +73,7 @@ export default function ChildSettingsScreen() {
                     <View style={styles.headerContent}>
                         <Image source={ANT_MASCOT} style={styles.headerMascot} resizeMode="contain" />
                         <View style={styles.headerTextContainer}>
-                            <Text style={styles.greetingTitle}>안녕, 우리 개미!</Text>
+                            <Text style={styles.greetingTitle}>안녕, {childName}!</Text>
                             <Text style={styles.greetingSubtitle}>오늘도 열심히 일해볼까?</Text>
                         </View>
                         <View style={styles.grainBadge}>
@@ -71,9 +103,9 @@ export default function ChildSettingsScreen() {
                     <Text style={styles.profileSubtitle}>내 정보와 앱 설정을 관리해요</Text>
 
                     <View style={styles.userProfileRow}>
-                        <Text style={styles.userAvatar}>🐼</Text>
+                        <Text style={styles.userAvatar}>{childAvatar}</Text>
                         <View style={styles.userInfo}>
-                            <Text style={styles.userName}>민준</Text>
+                            <Text style={styles.userName}>{childName}</Text>
                             <Text style={styles.userTheme}>🐜 개미 테마</Text>
                         </View>
                         <TouchableOpacity style={styles.editButton}>

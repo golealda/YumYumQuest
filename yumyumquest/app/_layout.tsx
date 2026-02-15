@@ -33,6 +33,9 @@ export default function RootLayout() {
       <Stack.Screen name="(parent)" options={{ gestureEnabled: false }} />
       <Stack.Screen name="(child)" options={{ gestureEnabled: false }} />
       <Stack.Screen name="login" options={{ gestureEnabled: false }} />
+      <Stack.Screen name="subscription" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="premium-lab" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="profile-edit" options={{ presentation: 'modal' }} />
       <Stack.Screen name="signup" options={{ presentation: 'modal' }} />
     </Stack>
   );

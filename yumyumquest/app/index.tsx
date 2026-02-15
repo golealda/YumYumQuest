@@ -4,6 +4,12 @@ import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { auth } from '../src/firebase';
 import { getUserFlowStatus } from '../src/services/auth';
+import {
+    clearChildSession,
+    getChildAutoLoginEnabled,
+    getChildSessionId,
+    isChildSessionValid,
+} from '../src/services/childSessionService';
 import { getAutoLoginEnabled } from '../src/services/sessionPreference';
 
 export default function Page() {
@@ -15,6 +21,18 @@ export default function Page() {
 
             try {
                 if (!user) {
+                    const childAutoLoginEnabled = await getChildAutoLoginEnabled();
+                    if (childAutoLoginEnabled) {
+                        const childSessionId = await getChildSessionId();
+                        if (childSessionId) {
+                            const valid = await isChildSessionValid(childSessionId);
+                            if (valid) {
+                                router.replace('/(child)');
+                                return;
+                            }
+                            await clearChildSession();
+                        }
+                    }
                     router.replace('/login');
                     return;
                 }

@@ -1,12 +1,24 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { signOut } from 'firebase/auth';
-import React, { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
+import { Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
+import { getOrCreateFamilyCode } from '../services/onboardingService';
+import { setAutoLoginEnabled } from '../services/sessionPreference';
+import {
+    getSelectedTheme,
+    getSubscriptionActive,
+    ParentThemeId,
+    setSelectedTheme,
+} from '../services/subscriptionPreference';
+import { Parent } from '../types/firestore';
 
 /* 
  * UI Component for the Parent's "Settings" Screen 
@@ -17,10 +29,77 @@ type TabType = 'theme' | 'report' | 'account';
 
 export default function ParentSettingsScreen() {
     const [activeTab, setActiveTab] = useState<TabType>('report');
+    const [isPremium, setIsPremium] = useState(false);
+    const [selectedThemeId, setSelectedThemeId] = useState<ParentThemeId>('ant_and_grasshopper');
+    const [profileName, setProfileName] = useState('보호자');
+    const [profileEmail, setProfileEmail] = useState('');
+    const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
+    const [familyCode, setFamilyCode] = useState('');
 
-    // Mock handlers
-    const handleUpgrade = () => Alert.alert("알림", "업그레이드 기능은 준비 중입니다.");
-    const handlePremiumInfo = () => Alert.alert("프리미엄", "프리미엄 플랜 안내 화면으로 이동합니다.");
+    const handleUpgrade = () => router.push('/subscription');
+    const handlePremiumInfo = () => router.push('/subscription');
+    const handleOpenPremiumLab = () => router.push('/premium-lab');
+
+    const handleCopyFamilyCode = async () => {
+        if (!familyCode) return;
+
+        try {
+            await Clipboard.setStringAsync(familyCode);
+            Alert.alert('복사 완료', '가족 연결 코드가 복사되었습니다.');
+        } catch (_) {
+            Alert.alert('오류', '복사에 실패했어요. 다시 시도해주세요.');
+        }
+    };
+
+    useFocusEffect(
+        useCallback(() => {
+            let mounted = true;
+
+            const loadThemeState = async () => {
+                const user = auth.currentUser;
+                const [premium, selectedTheme] = await Promise.all([getSubscriptionActive(), getSelectedTheme()]);
+
+                let parentData: Partial<Parent> | null = null;
+                if (user) {
+                    const parentRef = doc(db, 'parents', user.uid);
+                    const parentSnap = await getDoc(parentRef);
+                    parentData = parentSnap.exists() ? (parentSnap.data() as Partial<Parent>) : null;
+                }
+
+                if (!mounted) return;
+                setIsPremium(premium);
+                setSelectedThemeId(selectedTheme);
+                setProfileName(parentData?.displayName || user?.displayName || '보호자');
+                setProfileEmail(parentData?.email || user?.email || '');
+                setProfilePhotoUrl(parentData?.photoUrl || user?.photoURL || null);
+                if (user) {
+                    const code = await getOrCreateFamilyCode(user.uid);
+                    setFamilyCode(code);
+                } else {
+                    setFamilyCode('');
+                }
+            };
+
+            loadThemeState();
+            return () => {
+                mounted = false;
+            };
+        }, [])
+    );
+
+    const handleThemeSelect = async (themeId: ParentThemeId, premiumOnly: boolean) => {
+        if (premiumOnly && !isPremium) {
+            Alert.alert("프리미엄 전용", "이 테마는 구독 후 사용할 수 있어요.", [
+                { text: "취소", style: "cancel" },
+                { text: "구독하기", onPress: handleUpgrade },
+            ]);
+            return;
+        }
+
+        await setSelectedTheme(themeId);
+        setSelectedThemeId(themeId);
+        Alert.alert("테마 변경", "테마가 변경되었습니다.");
+    };
 
     const handleLogout = () => {
         Alert.alert(
@@ -35,12 +114,12 @@ export default function ParentSettingsScreen() {
                         console.log("Logout initiated");
                         try {
                             await signOut(auth);
+                            await setAutoLoginEnabled(false);
                             console.log("Firebase signOut successful");
+                            router.replace('/login');
                         } catch (e) {
                             console.error("Logout error", e);
-                        } finally {
-                            console.log("Navigating to root");
-                            router.replace('/');
+                            Alert.alert("로그아웃 실패", "로그아웃 중 문제가 발생했습니다. 다시 시도해주세요.");
                         }
                     }
                 }
@@ -61,9 +140,15 @@ export default function ParentSettingsScreen() {
                                 우리 아이의 경제 습관을 분석한 맞춤형{'\n'}리포트를 확인하세요
                             </Text>
 
-                            <TouchableOpacity style={styles.premiumButton} onPress={handleUpgrade}>
-                                <MaterialCommunityIcons name="crown-outline" size={20} color="#FFF" style={{ marginRight: 8 }} />
-                                <Text style={styles.premiumButtonText}>프리미엄으로 업그레이드</Text>
+                            {!isPremium && (
+                                <TouchableOpacity style={styles.premiumButton} onPress={handleUpgrade}>
+                                    <MaterialCommunityIcons name="crown-outline" size={20} color="#FFF" style={{ marginRight: 8 }} />
+                                    <Text style={styles.premiumButtonText}>프리미엄으로 업그레이드</Text>
+                                </TouchableOpacity>
+                            )}
+                            <TouchableOpacity style={styles.reportActionButton} onPress={handleOpenPremiumLab}>
+                                <Ionicons name="analytics-outline" size={18} color="#1E73E8" style={{ marginRight: 6 }} />
+                                <Text style={styles.reportActionText}>고급 리포트/퀘스트/저축 목표 열기</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -78,74 +163,97 @@ export default function ParentSettingsScreen() {
                                     <Text style={styles.themeSectionTitle}>테마 선택</Text>
                                     <View style={styles.goldBadge}>
                                         <MaterialCommunityIcons name="crown" size={12} color="#FFF" style={{ marginRight: 2 }} />
-                                        <Text style={styles.goldBadgeText}>업그레이드</Text>
+                                        <Text style={styles.goldBadgeText}>{isPremium ? '프리미엄' : '업그레이드'}</Text>
                                     </View>
                                 </View>
                                 <Text style={styles.themeSectionSubtitle}>아이와 함께 배울 이야기를 선택하세요</Text>
                             </View>
                         </View>
 
-                        {/* Theme Cards List */}
-                        {/* 1. Ant & Grasshopper (Active) */}
-                        <LinearGradient
-                            colors={['#FFE0B2', '#FFCC80']}
-                            style={styles.themeCard}
-                        >
-                            <View style={styles.activeThemeBadge}>
-                                <MaterialCommunityIcons name="crown" size={16} color="#FFF" />
-                            </View>
-                            <View style={styles.themeEmojis}>
-                                <Text style={styles.themeEmojiText}>🐜 🦗</Text>
-                            </View>
-                            <Text style={styles.themeTitle}>개미와 베짱이</Text>
-                            <Text style={styles.themeDesc}>성실함과 계획의 중요성</Text>
-                        </LinearGradient>
+                        <TouchableOpacity onPress={() => handleThemeSelect('ant_and_grasshopper', false)} activeOpacity={0.9}>
+                            <LinearGradient
+                                colors={['#FFE0B2', '#FFCC80']}
+                                style={[styles.themeCard, selectedThemeId === 'ant_and_grasshopper' && styles.selectedThemeCard]}
+                            >
+                                <View style={styles.activeThemeBadge}>
+                                    <Ionicons
+                                        name={selectedThemeId === 'ant_and_grasshopper' ? 'checkmark' : 'ellipse-outline'}
+                                        size={16}
+                                        color="#FFF"
+                                    />
+                                </View>
+                                <View style={styles.themeEmojis}>
+                                    <Text style={styles.themeEmojiText}>🐜 🦗</Text>
+                                </View>
+                                <Text style={styles.themeTitle}>개미와 베짱이</Text>
+                                <Text style={styles.themeDesc}>성실함과 계획의 중요성</Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
 
-                        {/* 2. Tortoise & Hare (Locked) */}
-                        <View style={[styles.themeCard, { backgroundColor: '#C8E6C9' }]}>
-                            <View style={styles.lockedBadge}>
-                                <Ionicons name="lock-closed" size={16} color="#FFF" />
+                        <TouchableOpacity onPress={() => handleThemeSelect('tortoise_and_hare', true)} activeOpacity={0.9}>
+                            <View style={[styles.themeCard, { backgroundColor: '#C8E6C9' }, selectedThemeId === 'tortoise_and_hare' && styles.selectedThemeCard]}>
+                                <View style={isPremium ? styles.activeThemeBadge : styles.lockedBadge}>
+                                    <Ionicons
+                                        name={
+                                            isPremium
+                                                ? (selectedThemeId === 'tortoise_and_hare' ? 'checkmark' : 'ellipse-outline')
+                                                : 'lock-closed'
+                                        }
+                                        size={16}
+                                        color="#FFF"
+                                    />
+                                </View>
+                                <View style={styles.themeEmojis}>
+                                    <Text style={styles.themeEmojiText}>🐰 🐢</Text>
+                                </View>
+                                <Text style={[styles.themeTitle, { color: '#2E7D32' }]}>토끼와 거북이</Text>
+                                <Text style={[styles.themeDesc, { color: '#388E3C' }]}>꾸준함이 이기는 법</Text>
+                                <View style={styles.premiumLabelRow}>
+                                    <MaterialCommunityIcons name="crown-outline" size={14} color="#FF6F00" />
+                                    <Text style={styles.premiumLabel}>{isPremium ? '사용 가능' : '프리미엄'}</Text>
+                                </View>
                             </View>
-                            <View style={styles.themeEmojis}>
-                                <Text style={styles.themeEmojiText}>🐰 🐢</Text>
-                            </View>
-                            <Text style={[styles.themeTitle, { color: '#2E7D32' }]}>토끼와 거북이</Text>
-                            <Text style={[styles.themeDesc, { color: '#388E3C' }]}>꾸준함이 이기는 법</Text>
-                            <View style={styles.premiumLabelRow}>
-                                <MaterialCommunityIcons name="crown-outline" size={14} color="#FF6F00" />
-                                <Text style={styles.premiumLabel}>프리미엄</Text>
-                            </View>
-                        </View>
+                        </TouchableOpacity>
 
-                        {/* 3. Dolphin & Fish (Locked) */}
-                        <View style={[styles.themeCard, { backgroundColor: '#E1F5FE' }]}>
-                            <View style={styles.lockedBadge}>
-                                <Ionicons name="lock-closed" size={16} color="#FFF" />
+                        <TouchableOpacity onPress={() => handleThemeSelect('dolphin_and_fish', true)} activeOpacity={0.9}>
+                            <View style={[styles.themeCard, { backgroundColor: '#E1F5FE' }, selectedThemeId === 'dolphin_and_fish' && styles.selectedThemeCard]}>
+                                <View style={isPremium ? styles.activeThemeBadge : styles.lockedBadge}>
+                                    <Ionicons
+                                        name={
+                                            isPremium
+                                                ? (selectedThemeId === 'dolphin_and_fish' ? 'checkmark' : 'ellipse-outline')
+                                                : 'lock-closed'
+                                        }
+                                        size={16}
+                                        color="#FFF"
+                                    />
+                                </View>
+                                <View style={styles.themeEmojis}>
+                                    <Text style={styles.themeEmojiText}>🐬 🐠</Text>
+                                </View>
+                                <Text style={[styles.themeTitle, { color: '#0277BD' }]}>돌고래와 물고기</Text>
+                                <Text style={[styles.themeDesc, { color: '#0288D1' }]}>협동과 나눔의 가치</Text>
+                                <View style={styles.premiumLabelRow}>
+                                    <MaterialCommunityIcons name="crown-outline" size={14} color="#FF6F00" />
+                                    <Text style={styles.premiumLabel}>{isPremium ? '사용 가능' : '프리미엄'}</Text>
+                                </View>
                             </View>
-                            <View style={styles.themeEmojis}>
-                                <Text style={styles.themeEmojiText}>🐬 🐠</Text>
-                            </View>
-                            <Text style={[styles.themeTitle, { color: '#0277BD' }]}>돌고래와 물고기</Text>
-                            <Text style={[styles.themeDesc, { color: '#0288D1' }]}>협동과 나눔의 가치</Text>
-                            <View style={styles.premiumLabelRow}>
-                                <MaterialCommunityIcons name="crown-outline" size={14} color="#FF6F00" />
-                                <Text style={styles.premiumLabel}>프리미엄</Text>
-                            </View>
-                        </View>
+                        </TouchableOpacity>
 
-                        {/* Premium Promo Card */}
-                        <View style={styles.promoCard}>
-                            <View style={styles.promoHeader}>
-                                <MaterialCommunityIcons name="crown-outline" size={24} color="#D84315" style={{ marginRight: 8 }} />
-                                <Text style={styles.promoTitle}>더 많은 테마를 원하시나요?</Text>
+                        {!isPremium && (
+                            <View style={styles.promoCard}>
+                                <View style={styles.promoHeader}>
+                                    <MaterialCommunityIcons name="crown-outline" size={24} color="#D84315" style={{ marginRight: 8 }} />
+                                    <Text style={styles.promoTitle}>더 많은 테마를 원하시나요?</Text>
+                                </View>
+                                <Text style={styles.promoDesc}>
+                                    프리미엄 플랜으로 업그레이드하면 토끼와 거북이, 돌고래와 물고기 테마를 사용할 수 있어요!
+                                </Text>
+                                <TouchableOpacity style={styles.promoButton} onPress={handlePremiumInfo}>
+                                    <Text style={styles.promoButtonText}>프리미엄 자세히 보기</Text>
+                                </TouchableOpacity>
                             </View>
-                            <Text style={styles.promoDesc}>
-                                프리미엄 플랜으로 업그레이드하면 토끼와 거북이, 돌고래와 물고기 테마를 사용할 수 있어요!
-                            </Text>
-                            <TouchableOpacity style={styles.promoButton} onPress={handlePremiumInfo}>
-                                <Text style={styles.promoButtonText}>프리미엄 자세히 보기</Text>
-                            </TouchableOpacity>
-                        </View>
+                        )}
                     </View>
                 );
             case 'account':
@@ -154,18 +262,35 @@ export default function ParentSettingsScreen() {
                         <View style={styles.accountCard}>
                             <View style={styles.accountHeader}>
                                 <View style={styles.avatarContainer}>
-                                    <Text style={styles.avatarText}>👨‍👩‍👧‍👦</Text>
+                                    {profilePhotoUrl ? (
+                                        <Image source={{ uri: profilePhotoUrl }} style={styles.avatarImage} />
+                                    ) : (
+                                        <Text style={styles.avatarText}>👨‍👩‍👧‍👦</Text>
+                                    )}
                                 </View>
                                 <View style={styles.accountInfo}>
-                                    <Text style={styles.accountName}>김철수</Text>
-                                    <Text style={styles.accountEmail}>parent@example.com</Text>
+                                    <Text style={styles.accountName}>{profileName}</Text>
+                                    <Text style={styles.accountEmail}>{profileEmail}</Text>
                                 </View>
-                                <TouchableOpacity style={styles.editProfileButton}>
+                                <TouchableOpacity style={styles.editProfileButton} onPress={() => router.push('/profile-edit')}>
                                     <Text style={styles.editProfileText}>편집</Text>
                                 </TouchableOpacity>
                             </View>
 
                             <View style={styles.divider} />
+
+                            <View style={styles.familyCodeCard}>
+                                <View style={styles.familyCodeHeader}>
+                                    <Ionicons name="key-outline" size={18} color="#2962FF" style={{ marginRight: 6 }} />
+                                    <Text style={styles.familyCodeTitle}>우리 가족 연결 코드</Text>
+                                    <TouchableOpacity style={styles.copyCodeButton} onPress={handleCopyFamilyCode} disabled={!familyCode}>
+                                        <Ionicons name="copy-outline" size={14} color="#2459AE" style={{ marginRight: 4 }} />
+                                        <Text style={styles.copyCodeButtonText}>복사</Text>
+                                    </TouchableOpacity>
+                                </View>
+                                <Text style={styles.familyCodeValue}>{familyCode || '생성 중...'}</Text>
+                                <Text style={styles.familyCodeHint}>아이 모드에서 이 코드를 입력하면 연결됩니다.</Text>
+                            </View>
 
                             <TouchableOpacity style={styles.menuItem}>
                                 <Ionicons name="notifications-outline" size={22} color="#555" style={{ marginRight: 12 }} />
@@ -218,10 +343,12 @@ export default function ParentSettingsScreen() {
                             <Text style={styles.headerTitle}>부모님 관리 페이지</Text>
                             <Text style={styles.headerSubtitle}>과제와 보상을 관리해주세요</Text>
                         </View>
-                        <TouchableOpacity style={styles.topUpgradeButton} onPress={handleUpgrade}>
-                            <MaterialCommunityIcons name="crown-outline" size={16} color="#FFF" style={{ marginRight: 4 }} />
-                            <Text style={styles.upgradeText}>업그레이드</Text>
-                        </TouchableOpacity>
+                        {!isPremium && (
+                            <TouchableOpacity style={styles.topUpgradeButton} onPress={handleUpgrade}>
+                                <MaterialCommunityIcons name="crown-outline" size={16} color="#FFF" style={{ marginRight: 4 }} />
+                                <Text style={styles.upgradeText}>업그레이드</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 </SafeAreaView>
             </LinearGradient>
@@ -503,6 +630,23 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         fontSize: 16,
     },
+    reportActionButton: {
+        marginTop: 10,
+        borderWidth: 1,
+        borderColor: '#BFDBFE',
+        backgroundColor: '#EFF6FF',
+        borderRadius: 12,
+        paddingVertical: 11,
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'row',
+        width: '100%',
+    },
+    reportActionText: {
+        color: '#1E73E8',
+        fontSize: 14,
+        fontWeight: '700',
+    },
 
     /* Account Tab Placeholder */
     /* Account Tab Styles */
@@ -535,6 +679,11 @@ const styles = StyleSheet.create({
     avatarText: {
         fontSize: 30,
     },
+    avatarImage: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+    },
     accountInfo: {
         flex: 1,
     },
@@ -563,6 +712,51 @@ const styles = StyleSheet.create({
         height: 1,
         backgroundColor: '#F0F0F0',
         marginBottom: 10,
+    },
+    familyCodeCard: {
+        backgroundColor: '#F3F8FF',
+        borderWidth: 1,
+        borderColor: '#DCEBFF',
+        borderRadius: 14,
+        padding: 14,
+        marginBottom: 12,
+    },
+    familyCodeHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
+    copyCodeButton: {
+        marginLeft: 'auto',
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#E5F0FF',
+        borderWidth: 1,
+        borderColor: '#C3DCFF',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
+    },
+    copyCodeButtonText: {
+        color: '#2459AE',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    familyCodeTitle: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#254C8A',
+    },
+    familyCodeValue: {
+        fontSize: 26,
+        fontWeight: '800',
+        letterSpacing: 2,
+        color: '#1A3A70',
+    },
+    familyCodeHint: {
+        marginTop: 4,
+        fontSize: 12,
+        color: '#4D6A96',
     },
     menuItem: {
         flexDirection: 'row',
@@ -628,6 +822,10 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.05,
         shadowRadius: 4,
         elevation: 2,
+    },
+    selectedThemeCard: {
+        borderWidth: 2,
+        borderColor: '#2979FF',
     },
     themeBadge: {
         position: 'absolute',

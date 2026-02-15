@@ -77,6 +77,24 @@ export const createFamilyGroup = async (ownerUid: string): Promise<string> => {
     return inviteCode;
 };
 
+// Return existing family code for this parent, or create one if missing.
+export const getOrCreateFamilyCode = async (ownerUid: string): Promise<string> => {
+    const parentRef = doc(db, 'parents', ownerUid);
+    const parentSnap = await getDoc(parentRef);
+    const parentData = parentSnap.exists() ? (parentSnap.data() as Partial<Parent>) : null;
+    const existingCode = parentData?.groupId;
+
+    if (existingCode) {
+        const groupRef = doc(db, 'groups', existingCode);
+        const groupSnap = await getDoc(groupRef);
+        if (groupSnap.exists()) {
+            return existingCode;
+        }
+    }
+
+    return createFamilyGroup(ownerUid);
+};
+
 // Initialize Parent Vault (optional, usually done on first purchase or lazily created)
 // Implementing for completeness if needed later
 export const initializeParentVault = async (parentId: string): Promise<void> => {
